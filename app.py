@@ -4,15 +4,17 @@ import requests
 from datetime import date
 
 # Set up the app page configuration
-st.set_page_config(page_title="FemmeMacro Pro: Women's Custom Tracker", layout="centered", page_icon="💪")
+st.set_page_config(page_title="PrimalMacro: Custom Tracker", layout="centered", page_icon="🥩")
 
-st.title("🙋‍♀️ FemmeMacro Pro Calculator & Tracker")
-st.write("A specialized macro calculator and automated food search tracker tailored for women aged 25–60.")
+st.title("🥩 PrimalMacro Calculator & Tracker")
+st.write("A specialized macro calculator and automated food search tracker tailored for individuals aged 25–60.")
 
 # ==========================================
 # SIDEBAR: USER PARAMETERS INPUT
 # ==========================================
-st.sidebar.header("1. Your Profile")
+st.sidebar.header("1. Biological Profile")
+gender = st.sidebar.selectbox("Biological Sex", ["Female", "Male"])
+
 age = st.sidebar.slider("Age", min_value=25, max_value=60, value=54, step=1)
 height_ft = st.sidebar.number_input("Height (Feet)", min_value=4, max_value=7, value=5)
 height_in = st.sidebar.number_input("Height (Inches)", min_value=0, max_value=11, value=4)
@@ -22,10 +24,16 @@ st.sidebar.header("2. Exercise Level")
 workout_days = st.sidebar.slider("Workout Frequency (Days/Week)", min_value=0, max_value=7, value=3, step=1)
 
 st.sidebar.header("3. Health Conditions & Tweaks")
-condition = st.sidebar.selectbox(
-    "Medical/Hormonal Factors",
-    ["None", "Hypothyroidism", "PCOS (Polycystic Ovary Syndrome)", "Post-Menopausal/Menopause Transition"]
-)
+if gender == "Female":
+    condition = st.sidebar.selectbox(
+        "Medical/Hormonal Factors",
+        ["None", "Hypothyroidism", "PCOS (Polycystic Ovary Syndrome)", "Post-Menopausal/Menopause Transition"]
+    )
+else:
+    condition = st.sidebar.selectbox(
+        "Medical/Hormonal Factors",
+        ["None", "Hypothyroidism", "Low Testosterone (Low T)"]
+    )
 
 st.sidebar.header("4. Physical & Body Limitations")
 limitation = st.sidebar.selectbox(
@@ -41,7 +49,11 @@ goal = st.sidebar.radio("Select Target Ratio", ["Aggressive Low-Carb Paleo", "Ba
 # ==========================================
 height_cm = ((height_ft * 12) + height_in) * 2.54
 weight_kg = weight_lbs * 0.453592
-bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
+
+if gender == "Female":
+    bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
+else:
+    bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) + 5
 
 if workout_days == 0:
     activity_multiplier = 1.2
@@ -57,10 +69,17 @@ if limitation in ["Joint Pain / Arthritis", "Low Mobility / Injury recovery"] an
 
 calories = bmr * activity_multiplier
 
-if age >= 50 or condition == "Post-Menopausal/Menopause Transition":
-    calories *= 0.93  
-if condition in ["Hypothyroidism", "PCOS (Polycystic Ovary Syndrome)"]:
-    calories *= 0.88  
+if gender == "Female":
+    if age >= 50 or condition == "Post-Menopausal/Menopause Transition":
+        calories *= 0.93  
+else:
+    if age >= 50 or condition == "Low Testosterone (Low T)":
+        calories *= 0.95  
+
+if condition == "Hypothyroidism":
+    calories *= 0.88
+elif condition == "PCOS (Polycystic Ovary Syndrome)":
+    calories *= 0.88
 
 target_calories = int(round(calories))
 
@@ -99,7 +118,6 @@ searched_fat = 0.0
 searched_carbs = 0.0
 
 if food_query:
-    # Querying the completely open, keyless Nutrola endpoint for rapid lookups
     url = f"https://nutrola.app{food_query}"
     
     try:
@@ -108,11 +126,9 @@ if food_query:
             data = response.json()
             foods = data.get("foods", [])
             if foods:
-                # Target the first most relevant item found in the open database
-                top_food = foods[0]
+                top_food = foods
                 st.success(f"**Found item:** {top_food.get('name', food_query).title()} (Per 100g standard serving)")
                 
-                # Fetch parameters from data stream
                 searched_calories = float(top_food.get("calories", 0))
                 searched_protein = float(top_food.get("protein", 0))
                 searched_fat = float(top_food.get("fat", 0))
@@ -124,9 +140,9 @@ if food_query:
                 f_col3.write(f"🥑 **Fat:** {int(round(searched_fat))}g")
                 f_col4.write(f"🥦 **Carbs:** {int(round(searched_carbs))}g")
             else:
-                st.warning("Food item not found in the open directory. Try a broader term (e.g., use 'chicken' instead of 'grilled organic cutlet').")
+                st.warning("Food item not found in the open directory. Try a broader term.")
         else:
-            st.error("The open database server is currently busy. You can still manually type your totals in the logging form below.")
+            st.error("The open database server is currently busy. You can still manually type your totals below.")
     except Exception:
          st.error("Network connection timeout. Please enter metrics manually in the tracker section below.")
 
@@ -143,7 +159,6 @@ with st.form("log_form", clear_on_submit=False):
     t_date = st.date_input("Tracking Date", date.today())
     t_weight = st.number_input("Today's Weight (lbs)", min_value=80.0, max_value=400.0, value=float(weight_lbs), step=0.1)
     
-    # Pre-populate fields if an automated lookup was successful
     t_prot = st.number_input("Logged Protein (g)", min_value=0, max_value=300, value=int(round(searched_protein)))
     t_fat = st.number_input("Logged Fat (g)", min_value=0, max_value=200, value=int(round(searched_fat)))
     t_carb = st.number_input("Logged Carbs (g)", min_value=0, max_value=500, value=int(round(searched_carbs)))
@@ -162,7 +177,6 @@ if not st.session_state.tracker_db.empty:
     st.subheader("📋 Your Saved Metric Log History")
     st.dataframe(st.session_state.tracker_db, use_container_width=True)
     
-    # AUTOMATED PERFORMANCE AVERAGES ENGINE
     st.subheader("📊 Your Performance Averages")
     avg_weight = st.session_state.tracker_db["Weight (lbs)"].mean()
     avg_prot = st.session_state.tracker_db["Protein (g)"].mean()
