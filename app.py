@@ -105,10 +105,10 @@ col4.metric("🥦 Carbs", f"{carb_g}g")
 col5.metric("💧 Water Target", f"{target_water} oz")
 
 # ==========================================
-# OPEN INTERNET NUTRITION ENGINE (NUTROLA)
+# OPEN INTERNET NUTRITION ENGINE (OPEN FOOD FACTS)
 # ==========================================
 st.header("🔍 Intelligent Food Lookup Engine")
-st.write("Type a food item to instantly pull its nutritional breakdown (e.g., *'chicken breast'*, *'avocado'*, *'egg'*).")
+st.write("Type a specific ingredient or branded food item (e.g., *'whole milk'*, *'eggs'*, *'chicken'*) to fetch 100g nutritional baseline metrics.")
 
 food_query = st.text_input("What food item are you looking up?", placeholder="Type food item here...")
 
@@ -118,33 +118,47 @@ searched_fat = 0.0
 searched_carbs = 0.0
 
 if food_query:
-    url = f"https://nutrola.app{food_query}"
+    # Querying Open Food Facts global open search engine endpoint
+    url = f"https://openfoodfacts.org{food_query}&search_simple=1&action=process&json=1"
     
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            foods = data.get("foods", [])
-            if foods:
-                top_food = foods
-                st.success(f"**Found item:** {top_food.get('name', food_query).title()} (Per 100g standard serving)")
+            products = data.get("products", [])
+            if products:
+                # Find the first item with valid nutritional metrics available
+                matched_product = None
+                for p in products:
+                    if "nutriments" in p:
+                        matched_product = p
+                        break
                 
-                searched_calories = float(top_food.get("calories", 0))
-                searched_protein = float(top_food.get("protein", 0))
-                searched_fat = float(top_food.get("fat", 0))
-                searched_carbs = float(top_food.get("carbs", 0))
-                
-                f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-                f_col1.write(f"🔥 **Calories:** {int(round(searched_calories))} kcal")
-                f_col2.write(f"🥩 **Protein:** {int(round(searched_protein))}g")
-                f_col3.write(f"🥑 **Fat:** {int(round(searched_fat))}g")
-                f_col4.write(f"🥦 **Carbs:** {int(round(searched_carbs))}g")
+                if matched_product:
+                    display_name = matched_product.get('product_name', food_query).title()
+                    st.success(f"**Found item:** {display_name} (Standard values per 100g serving)")
+                    
+                    nutrients = matched_product.get("nutriments", {})
+                    
+                    # Safely map database keys to local variables
+                    searched_calories = float(nutrients.get("energy-kcal_value", nutrients.get("energy-kcal_100g", 0)))
+                    searched_protein = float(nutrients.get("proteins_100g", 0))
+                    searched_fat = float(nutrients.get("fat_100g", 0))
+                    searched_carbs = float(nutrients.get("carbohydrates_100g", 0))
+                    
+                    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+                    f_col1.write(f"🔥 **Calories:** {int(round(searched_calories))} kcal")
+                    f_col2.write(f"🥩 **Protein:** {int(round(searched_protein))}g")
+                    f_col3.write(f"🥑 **Fat:** {int(round(searched_fat))}g")
+                    f_col4.write(f"🥦 **Carbs:** {int(round(searched_carbs))}g")
+                else:
+                    st.warning("Nutritional facts missing for this entry item. Try using a broader search word.")
             else:
-                st.warning("Food item not found in the open directory. Try a broader term.")
+                st.warning("Food item not found in the open public library database.")
         else:
-            st.error("The open database server is currently busy. You can still manually type your totals below.")
+            st.error("The open database connection failed. Please log metrics manually in the tracker section below.")
     except Exception:
-         st.error("Network connection timeout. Please enter metrics manually in the tracker section below.")
+         st.error("The database response timed out. Please enter metrics manually in the tracker section below.")
 
 # ==========================================
 # USER INPUT WORKSPACE: LOGGING TRACKER
